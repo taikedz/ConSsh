@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+
+import os
+import re
+import sys
+import shlex
+import argparse
+
+SSHDB = os.getenv("CONSSH_FILE", os.path.expanduser("~/.local/var/conssh/servers.txt"))
+
+
+class ConSshError(Exception):
+    def __init__(self, msg, code=1):
+        self.code = code
+        super().__init__(msg)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--copy-id", "-D", action="store_true", help="Copy SSH ID to server")
+    parser.add_argument("--cp", "-C", action="store_true", help="Copy files")
+    parser.add_argument("--edit", "-E", action="store_true", help="Edit the server database file")
+    parser.add_argument("--save", help="Store ssh command")
+    parser.add_argument("--select", "-S", default='', help="Select unique entry matching this value")
+    parser.add_argument(dest="command", nargs="*", help="Command/file names")
+
+    return parser.parse_args()
+
+
+def read_serverfile_lines():
+    if not os.path.exists(SSHDB):
+        raise ConSshError(f"No such file {SSHDB}", 10)
+
+    with open(SSHDB) as fh:
+        lines = fh.readlines()
+
+    lines = [L.strip() for L in lines if not re.search(r'^\s*(#|$)', L)]
+    return lines
+
+
+def main():
+    args = parse_args()
+
+    if args.edit:
+        do_edit()
+        return
+
+    if args.save:
+        save_entry(args.save)
+        return
+
+    lines = read_serverfile_lines()
+
+    target = user_selection(lines, args.select)
+
+    if args.copy_id:
+        run_ssh_command("ssh-copy-id", target)
+
+    elif args.cp:
+        run_ssh_command("scp", ['R'] + args.command)
+
+    else:
+        run_ssh_command("ssh", target + args.command)
+
+
+def do_edit():
+    editor = os.getenv("EDITOR", 'nano')
+    os.execv("/usr/bin/env", ["env", editor, SSHDB])
+
+
+def save_entry(command):
+    with open(SSHDB, 'a') as fh:
+        fh.write(command)
+        fh.write('\n# -----------\n')
+
+
+def run_ssh_command(command, options):
+    user, host, port, options = extract_host_meta(options)
+    command_options = ['env', command, f"{user}@{host}", f"-p{port}"] + options
+    print(command_options)
+    os.execl("/usr/bin/env", *command_options)
+
+
+def extract_host_meta(target:list) -> tuple[str,str,str,list[str]]:
+    target, options = target[0], target[1:]
+
+    m = re.match(r'([a-zA-Z0-9_-]+)@([a-zA-Z0-9_.-]+):([0-9]+)\b', target)
+
+    if m:
+        return m.group(1), m.group(2), m.group(3), options
+
+    else:
+        m = re.match(r'([a-zA-Z0-9_-]+)@([a-zA-Z0-9_.-]+)\b', target)
+
+        if not m:
+            raise ConSshError(f"Malformed host spec: {target}")
+
+        return m.group(1), m.group(2), "22", options
+
+
+def _remove_comment(raw_line):
+    tokens = shlex.split(raw_line)
+    if '#' in tokens:
+        i = tokens.index('#')
+        tokens = tokens[:i]
+    return tokens
+
+
+def user_selection(lines, selector):
+    lines = [L.strip() for L in lines if selector in L]
+
+    if len(lines) != 1:
+        lines_str = '\n'.join(lines)
+        # TODO - add an interactive selection here
+        raise ConSshError(f"Expected 1 result, got:\n{lines_str}", 11)
+    return _remove_comment(lines[0])
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except ConSshError as e:
+        print(e, file=sys.stderr)
+        exit(e.code)
