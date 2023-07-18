@@ -7,7 +7,7 @@ import shlex
 import argparse
 
 SSHDB = os.getenv("CONSSH_FILE", os.path.expanduser("~/.local/var/conssh/servers.txt"))
-
+IGNORE_FINGERPRINT_TOKENS = [ "-o", "UserKnownHostsFile=/dev/null" , "-o", "StrictHostKeyChecking=no"]
 
 class ConSshError(Exception):
     def __init__(self, msg, code=1):
@@ -23,6 +23,7 @@ def parse_args():
     parser.add_argument("--edit", "-E", action="store_true", help="Edit the server database file")
     parser.add_argument("--save", help="Store ssh command")
     parser.add_argument("--select", "-S", default='', help="Select unique entry matching this value")
+    parser.add_argument("--ignore-fingerprints", "-I", dest="ignore", action="store_true", help="Ignore fingerprints")
     parser.add_argument(dest="command", nargs="*", help="Command/file names")
 
     return parser.parse_args()
@@ -55,13 +56,13 @@ def main():
     target = user_selection(lines, args.select)
 
     if args.copy_id:
-        run_ssh_command("ssh-copy-id", target)
+        run_ssh_command("ssh-copy-id", target, args.ignore)
 
     elif args.cp:
-        run_ssh_command("scp", ['R'] + args.command)
+        run_ssh_command("scp", ['R'] + args.command, args.ignore)
 
     else:
-        run_ssh_command("ssh", target + args.command)
+        run_ssh_command("ssh", target + args.command, args.ignore)
 
 
 def do_edit():
@@ -75,9 +76,12 @@ def save_entry(command):
         fh.write('\n# -----------\n')
 
 
-def run_ssh_command(command, options):
+def run_ssh_command(command, options, ignore):
     user, host, port, options = extract_host_meta(options)
-    command_options = ['env', command, f"{user}@{host}", f"-p{port}"] + options
+    command_options = ['env', command, f"{user}@{host}", f"-p{port}"]
+    if ignore:
+        command_options.extend(IGNORE_FINGERPRINT_TOKENS)
+    command_options.extend(options)
     print(command_options)
     os.execl("/usr/bin/env", *command_options)
 
