@@ -73,7 +73,7 @@ def do_edit():
 def save_entry(command):
     with open(SSHDB, 'a') as fh:
         fh.write(command)
-        fh.write('\n# -----------\n')
+        fh.write('\n\n# -----------\n')
 
 
 def run_ssh_command(command, options, ignore):
