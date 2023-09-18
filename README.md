@@ -9,27 +9,27 @@ Save SSH targets to a file
 
 Connect by choosing a target by name
 
-`conssh -S host1`
+`conssh host1`
 
 Connect by choosing a target by comment
 
-`conssh -S list`
+`conssh list`
 
 Connect and run a command
 
-`conssh -S host1 'df -h'`
+`conssh host1 -x 'df -h'`
 
 Ignore host key fingerprint checking
 
-`conssh -S host1 -I`
+`conssh host1 -I`
 
 ```
-usage: conssh [-h] [--copy-id] [--cp] [--edit] [--save SAVE] [--select SELECT]
-              [--ignore-fingerprints]
-              [command ...]
+usage: conssh [-h] [--copy-id] [--cp] [--edit] [--save SAVE]
+              [--ignore-fingerprints] [--execute COMMAND]
+              [select ...]
 
 positional arguments:
-  command               Command/file names
+  select                Select unique entry matching this value
 
 options:
   -h, --help            show this help message and exit
@@ -37,8 +37,8 @@ options:
   --cp, -C              Copy files
   --edit, -E            Edit the server database file
   --save SAVE           Store ssh command
-  --select SELECT, -S SELECT
-                        Select unique entry matching this value
   --ignore-fingerprints, -I
                         Ignore fingerprints
+  --execute COMMAND, -x COMMAND
+                        Command/file names
 ```
