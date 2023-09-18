@@ -22,11 +22,17 @@ def parse_args():
     parser.add_argument("--cp", "-C", action="store_true", help="Copy files")
     parser.add_argument("--edit", "-E", action="store_true", help="Edit the server database file")
     parser.add_argument("--save", help="Store ssh command")
-    parser.add_argument("--select", "-S", default='', help="Select unique entry matching this value")
     parser.add_argument("--ignore-fingerprints", "-I", dest="ignore", action="store_true", help="Ignore fingerprints")
-    parser.add_argument(dest="command", nargs="*", help="Command/file names")
+    parser.add_argument("--execute", "-x", dest="command", nargs=1, default=[], help="Command/file names")
+    parser.add_argument(dest="select", nargs="*", help="Select unique entry matching this value")
 
-    return parser.parse_args()
+    pargs = parser.parse_args()
+
+    if pargs.select and len(pargs.select) > 1:
+        raise ConSshError(f"Extra argument tokens not supported. Did you mean `--execute COMMAND` ?\n\t-x '{' '.join(pargs.select[1:])}'")
+    pargs.select = pargs.select[0] if pargs.select else None
+
+    return pargs
 
 
 def read_serverfile_lines():
@@ -52,7 +58,6 @@ def main():
         return
 
     lines = read_serverfile_lines()
-
     target = user_selection(lines, args.select)
 
     if args.copy_id:
@@ -78,12 +83,12 @@ def save_entry(command):
 
 def run_ssh_command(command, options, ignore):
     user, host, port, options = extract_host_meta(options)
-    command_options = ['env', command, f"{user}@{host}", f"-p{port}"]
+    command_options = [command, command, f"{user}@{host}", f"-p{port}"]
     if ignore:
         command_options.extend(IGNORE_FINGERPRINT_TOKENS)
     command_options.extend(options)
     print(command_options)
-    os.execl("/usr/bin/env", *command_options)
+    os.execl(f"/usr/bin/env", *command_options)
 
 
 def extract_host_meta(target:list) -> tuple[str,str,str,list[str]]:
