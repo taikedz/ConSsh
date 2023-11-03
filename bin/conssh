@@ -24,6 +24,7 @@ def parse_args():
     parser.add_argument("--save", help="Store ssh command")
     parser.add_argument("--ignore-fingerprints", "-I", dest="ignore", action="store_true", help="Ignore fingerprints")
     parser.add_argument("--execute", "-x", dest="command", nargs=1, default=[], help="Command/file names")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose SSH handshaking output")
     parser.add_argument(dest="select", nargs="*", help="Select unique entry matching this value")
 
     pargs = parser.parse_args()
@@ -61,13 +62,13 @@ def main():
     target = user_selection(lines, args.select)
 
     if args.copy_id:
-        run_ssh_command("ssh-copy-id", target, args.ignore)
+        run_ssh_command("ssh-copy-id", target, args.ignore, args.verbose)
 
     elif args.cp:
-        run_ssh_command("scp", ['R'] + args.command, args.ignore)
+        run_ssh_command("scp", ['R'] + args.command, args.ignore, args.verbose)
 
     else:
-        run_ssh_command("ssh", target + args.command, args.ignore)
+        run_ssh_command("ssh", target + args.command, args.ignore, args.verbose)
 
 
 def do_edit():
@@ -81,12 +82,19 @@ def save_entry(command):
         fh.write('\n\n# -----------\n')
 
 
-def run_ssh_command(command, options, ignore):
+def run_ssh_command(command, options, ignore, verbose):
     user, host, port, options = extract_host_meta(options)
+
     command_options = [command, command, f"{user}@{host}", f"-p{port}"]
+
+    if verbose:
+        command_options.append("-vvv")
+
     if ignore:
         command_options.extend(IGNORE_FINGERPRINT_TOKENS)
+
     command_options.extend(options)
+
     print(command_options)
     os.execl(f"/usr/bin/env", *command_options)
 
